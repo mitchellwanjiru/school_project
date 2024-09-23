@@ -1,10 +1,15 @@
 import streamlit as st
-import openai
+import cohere
 import os
 import PyPDF2
 
 # Set OpenAI API key from environment variable
-openai.api_key = os.getenv("OPENAI_API_KEY")
+api_key = os.getenv('COHERE_API_KEY')
+co = cohere.Client(api_key)
+
+if not api_key:
+    st.error("API key not found. Please set the 'COHERE_API_KEY' environment variable.")
+    st.stop()
 
 # Define function to read a PDF document
 def read_pdf(file):
@@ -18,35 +23,35 @@ def read_pdf(file):
 # Function to ask a question based on the uploaded notes
 def ask_question(notes, question):
     prompt = f"The following are lecture notes:\n\n{notes}\n\nQuestion: {question}\nAnswer in a clear and concise way."
-    response = openai.Completion.create(
-        engine="text-davinci-003",
+    response = co.generate(
+        model='command-xlarge-nightly',
         prompt=prompt,
         max_tokens=150,
-        temperature=0.7
     )
-    return response.choices[0].text.strip()
+    return response.generations[0].text
 
 # Function to generate a quiz based on the uploaded notes
 def generate_quiz(notes):
     prompt = f"Generate a multiple-choice quiz based on these lecture notes:\n\n{notes}\n\nInclude 5 questions with 4 options each."
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
-        max_tokens=300,
-        temperature=0.7
-    )
-    return response.choices[0].text.strip()
+    response = co.generate(
+    model='command-xlarge-nightly',
+    prompt=f"Generate quiz questions from these notes: {notes}",
+    max_tokens=300
+)
+
+    return response.generations[0].text
+
 
 # Function to create flashcards
 def generate_flashcards(notes):
     prompt = f"Generate flashcards with questions and answers from these lecture notes:\n\n{notes}\n\nCreate 5 flashcards."
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
-        max_tokens=300,
-        temperature=0.7
-    )
-    return response.choices[0].text.strip()
+    response = co.generate(
+    model='command-xlarge-nightly',
+    prompt=f"Generate flashcards from these notes: {notes}",
+    max_tokens=300
+)
+    return response.generations[0].text
+
 
 # Streamlit App
 st.title("Learning Assistant App")
