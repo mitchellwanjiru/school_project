@@ -6,8 +6,9 @@ import cohere
 import os
 import sqlite3
 from PyPDF2 import PdfReader 
-from db import connect_db, create_notes_table, create_flashcards_table, create_quiz_table, create_users_table
-create_notes_table(), create_flashcards_table(), create_users_table(), create_quiz_table()
+from db import connect_db, create_notes_table, create_flashcards_table, create_quiz_table, create_users_table, add_flashcard, add_note, add_quiz, get_all_users, get_user_flashcards, get_saved_notes, get_user_notes, get_user_quiz, update_user_progress, login_user, display_flashcards, display_notes, display_quizzes, display_users_table
+#initialize tables
+#create_flashcards_table(), create_notes_table(), create_quiz_table(), create_users_table()
 # from streamlit_lottie import st_lottie
 
 st.set_page_config(
@@ -20,8 +21,6 @@ co = cohere.Client(api_key)
 if api_key is None:
     st.error("API key not found. Please set the COHERE_API_KEY environment variable.")
     st.stop()
-
-
 
 with st.sidebar:
     selected = option_menu(
@@ -77,14 +76,7 @@ elif selected == "Summary":
         summary = response.generations[0].text
         return summary
 
-    # Function to retrieve saved notes from the database
-    def get_saved_notes():
-        conn = sqlite3.connect('learning_assistant.db')
-        cursor = conn.cursor()
-        cursor.execute('SELECT note_title, note_content FROM notes')
-        notes = cursor.fetchall()
-        conn.close()
-        return notes
+    
 
     # function to choose from saved notes(if available)
     saved_notes = get_saved_notes()
@@ -130,17 +122,80 @@ elif selected == "Study Guide":
     st.text("This is where you can generate study guides from your notes")
     st.text("You can also view and edit your study guides here")
     st.write("Click here to generate a study guide")
-    st.button("Generate Study Guide")
+    
     
 elif selected == "Flashcards":
-    st.title("Flashcards")
+    st.title("Generate and View Flashcards")
     st.text("Welcome to the Flashcards page")
     st.text("This is where you can generate flashcards from your notes")
     st.text("You can also view and edit your flashcards here")
     st.write("Click here to generate flashcards")
-    st.button("Generate Flashcards")
 
-elif selected == "Quiz":
+#function to generate flashcards
+def generate_flashcards(notes):
+    response = co.generate(
+        model='command-xlarge-nightly',
+        prompt=f"generate 5 flashcards with questions and answers from the following notes:\n\n{notes}",
+        max_tokens=200,
+    )
+    flashcards = response.generations[0].text
+    return flashcards
+
+#function to parse the generated text into question-answer pairs
+def parse_flashcards(flashcards_text):
+    flashcards = []
+    lines = flashcards_text.split("\n")
+    for i in range(0, len(lines), 2):
+        question = lines[i].strip()
+        answer = lines[i + 1].strip() if i + 1 < len(lines) else ""
+        flashcards.append(({"question": question, "answer": answer}))
+    return flashcards
+
+#upload notes
+uploaded_file = st.file_uploader("Upload your notes (PDF or TXT)", type=["pdf", "txt"])
+
+if uploaded_file:
+    if uploaded_file.type == "application/pdf":
+        pdf_reader = PdfReader(uploaded_file)
+        notes = ""
+        for page in pdf_reader.pages:
+            notes += page.extract_text()
+    else:
+        notes = uploaded_file.read().decode("utf-8")
+
+    st.write("Here is a preview of your uploaded notes:")
+    st.write(notes[:20] + "...")
+
+    # generate and save flashcards button
+    if st.button("Generate Flashcards"):
+        with st.spinner("Generating flashcards..."):
+            generated_flashcards = generate_flashcards(notes)
+            flashcards = parse_flashcards(generated_flashcards)
+            user_id = 1
+            for flashcard in flashcards:
+                question = flashcard["question"]
+                answer = flashcard["answer"]
+                add_flashcard(user_id, question, answer)
+            st.success("Flashcards generated and saved successfully!")
+
+
+#display existing flashcards
+st.subheader("View Existing Flashcards")
+user_id = 1
+flashcards = get_user_flashcards(user_id)
+
+if flashcards:
+        for question, answer in flashcards:
+            st.write(f"Question: {question}")
+        if st.button(f"Show Answer: {question}"):
+            if answer:
+                st.write(f"A: {answer[0]}")
+            else:
+                st.write("A:No answer available")
+else:
+     st.write("No flashcards available.")
+
+if selected == "Quiz":
     st.title("Quiz")
     st.text("Welcome to the Quiz page")
     st.text("This is where you can generate quizzes from your notes")

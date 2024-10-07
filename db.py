@@ -31,7 +31,7 @@ def create_users_table():
             password TEXT NOT NULL
             progress INTEGER DEFAULT 0
         )           
-       ''')
+         ''')
     conn.commit()
     conn.close()
     
@@ -86,7 +86,7 @@ def login_user(username, password):
 def add_flashcard(user_id, question, answer):
     conn = connect_db()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO flashcards (user_id, question, answer) VALUES (?, ?)', (user_id, question, answer))
+    cursor.execute('INSERT INTO flashcards (user_id, question, answer) VALUES (?, ?, ?)', (user_id, question, answer))
     conn.commit()
     conn.close()
 #function to add data to quiz table
@@ -116,7 +116,7 @@ def get_all_users():
 def get_user_flashcards(user_id):
     conn = connect_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM flashcards WHERE user_id = ?', (user_id))
+    cursor.execute('SELECT question, answer FROM flashcards WHERE user_id = ?', (user_id,))
     flashcards = cursor.fetchall()
     conn.close()
     return flashcards
@@ -124,7 +124,7 @@ def get_user_flashcards(user_id):
 def get_user_quiz(user_id):
     conn = connect_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM quiz WHERE user_id = ?', (user_id))
+    cursor.execute('SELECT * FROM quiz WHERE user_id = ?', (user_id,))
     quiz = cursor.fetchall()
     conn.close()
     return quiz
@@ -132,7 +132,16 @@ def get_user_quiz(user_id):
 def get_user_notes(user_id):
     conn = connect_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM notes WHERE user_id = ?', (user_id))
+    cursor.execute('SELECT * FROM notes WHERE user_id = ?', (user_id,))
+    notes = cursor.fetchall()
+    conn.close()
+    return notes
+
+#Function to reteieve saved notes from the database
+def get_saved_notes():
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT note_title, note_content FROM notes')
     notes = cursor.fetchall()
     conn.close()
     return notes
