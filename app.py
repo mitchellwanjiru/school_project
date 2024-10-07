@@ -6,8 +6,8 @@ import cohere
 import os
 import sqlite3
 from PyPDF2 import PdfReader 
-from db import connect_db, create_notes_table
-create_notes_table()
+from db import connect_db, create_notes_table, create_flashcards_table, create_quiz_table, create_users_table
+create_notes_table(), create_flashcards_table(), create_users_table(), create_quiz_table()
 # from streamlit_lottie import st_lottie
 
 st.set_page_config(
