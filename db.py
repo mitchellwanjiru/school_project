@@ -100,7 +100,7 @@ def add_quiz(user_id, quiz_data, score):
 def add_note(user_id, note_title, note_content):
     conn = connect_db()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO notes (user_id, note_title, note_content) VALUES(?, ?)' (user_id, note_title, note_content))
+    cursor.execute('INSERT INTO notes (user_id, note_title, note_content) VALUES(?, ?, ?)', (user_id, note_title, note_content))
     conn.commit()
     conn.close()
 
@@ -138,7 +138,7 @@ def get_user_notes(user_id):
     return notes
 
 #Function to reteieve saved notes from the database
-def get_saved_notes():
+def get_saved_notes(user_id):
     conn = connect_db()
     cursor = conn.cursor()
     cursor.execute('SELECT note_title, note_content FROM notes')
