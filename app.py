@@ -6,8 +6,8 @@ import cohere
 import os
 import sqlite3
 from PyPDF2 import PdfReader 
-from db import connect_db, create_notes_table, create_flashcards_table, create_quiz_table, create_users_table, add_flashcard, add_note, add_quiz, get_all_users, get_user_flashcards, get_saved_notes, get_user_notes, get_user_quiz, update_user_progress, login_user, display_flashcards, display_notes, display_quizzes, display_users_table
-#initialize tables
+from db import connect_db, create_notes_table, create_flashcards_table, create_studyguide_table,create_quiz_table, create_users_table, add_flashcard, add_note, add_quiz, get_all_users, get_user_flashcards, get_saved_notes, get_user_notes, get_user_quiz, update_user_progress, login_user, display_flashcards, display_notes, display_quizzes, display_users_table, get_study_guides, add_study_guide
+create_studyguide_table()
 #create_flashcards_table(), create_notes_table(), create_quiz_table(), create_users_table()
 # from streamlit_lottie import st_lottie
 
@@ -138,26 +138,6 @@ elif selected == "Summary":
                 st.write(summary)
       
     
-
-elif selected == "Study Guide":
-    st.title("Study Guide")
-    st.text("Welcome to the Study Guide page")
-    st.text("This is where you can generate study guides from your notes")
-    st.text("You can also view and edit your study guides here")
-    st.write("Choose the notes to use to generate a study guide or describe what you want to study for")
-    
- # function to generate a study guide
-    def generate_study_guide():
-        response = co.generate(
-            model = 'command-xlarge-nightly',
-            prompt = f"generate a clear and concise study guide based on the following notes\n\n{notes}\n\n",
-            max_tokens=500,
-        )
-        study_guide = response.generations[0].text
-        return study_guide
-    
-    
-    
 elif selected == "Flashcards":
     st.title("Generate and View Flashcards")
     st.text("Welcome to the Flashcards page")
@@ -273,7 +253,61 @@ elif selected == "Quiz":
     else:
         st.write("No saved notes available.")
 
+
+
+# Study Guide Page Logic
+elif selected == "Study Guide":
+    st.title("Generate Your Study Guide")
     
+    # Function to generate a study guide from notes
+    def generate_study_guide(notes):
+        response = co.generate(
+        model='command-xlarge-nightly',
+        prompt=f"Generate a study guide based on these notes:\n\n{notes}\n\nThe study guide should summarize key points and suggest topics to focus on.",
+        max_tokens=300
+    )
+        study_guide = response.generations[0].text
+        return study_guide
+
+    user_id = 1  # Example user ID, replace with actual user ID from your app's logic
+
+    # Fetch saved notes from the database
+    saved_notes = get_saved_notes(user_id)
+    
+    if saved_notes:
+        # Let the user select a note from a dropdown
+        note_titles = [note[0] for note in saved_notes]  # Get titles of saved notes
+        selected_note_title = st.selectbox("Choose your notes", note_titles)
+
+        # Retrieve the content of the selected note
+        note_content = next(note[1] for note in saved_notes if note[0] == selected_note_title)
+
+        st.write(f"Selected Notes: {selected_note_title}")
+        st.write(note_content[:500] + "...")  # Show a preview of the selected notes
+
+        # Generate Study Guide
+        if st.button("Generate Study Guide"):
+            with st.spinner("Generating your study guide..."):
+                study_guide = generate_study_guide(note_content)
+                st.subheader("Generated Study Guide")
+                st.write(study_guide)
+
+                # Save the generated study guide to the database
+                add_study_guide(user_id, study_guide)
+                st.success("Study guide saved successfully!")
+
+    else:
+        st.write("No saved notes available. Please upload notes on the Notes page.")
+
+    # Display saved study guides
+    st.subheader("Your Saved Study Guides")
+    saved_guides = get_study_guides(user_id)
+
+    if saved_guides:
+        for guide in saved_guides:
+            st.write(f"Study Guide:\n\n{guide[0]}")
+    else:
+        st.write("No study guides available.")    
 
     
     

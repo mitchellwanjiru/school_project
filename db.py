@@ -67,6 +67,28 @@ def create_quiz_table():
     conn.commit()
     conn.close()
     
+def create_studyguide_table():
+    conn = sqlite3.connect('learning_assistant.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS study_guides (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            guide_content TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Function to add a study guide
+def add_study_guide(user_id, guide_content):
+    conn = sqlite3.connect('learning_assistant.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO study_guides (user_id, guide_content) VALUES (?, ?)', (user_id, guide_content))
+    conn.commit()
+    conn.close()
+    
 #function to add data into users table
 def add_user(username, password):
     conn = connect_db()
@@ -93,7 +115,7 @@ def add_flashcard(user_id, question, answer):
 def add_quiz(user_id, quiz_data, score):
     conn = connect_db()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO quiz (user_id, quiz_data, score) VALUES(?, ?)' (user_id, quiz_data, score))
+    cursor.execute('INSERT INTO quiz (user_id, quiz_data, score) VALUES(?, ?)', (user_id, quiz_data, score))
     conn.commit()
     conn.close()
 #function to add data to notes table
@@ -136,6 +158,15 @@ def get_user_notes(user_id):
     notes = cursor.fetchall()
     conn.close()
     return notes
+
+# Function to get study guides for a user
+def get_study_guides(user_id):
+    conn = sqlite3.connect('learning_assistant.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT guide_content FROM study_guides WHERE user_id = ?', (user_id,))
+    guides = cursor.fetchall()
+    conn.close()
+    return guides
 
 #Function to reteieve saved notes from the database
 def get_saved_notes(user_id):
