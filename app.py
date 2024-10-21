@@ -6,7 +6,7 @@ import cohere
 import os
 import sqlite3
 from PyPDF2 import PdfReader 
-from db import connect_db, create_notes_table, create_flashcards_table, create_studyguide_table,create_quiz_table, create_users_table, add_flashcard, add_note, add_quiz, get_all_users, get_user_flashcards, get_saved_notes, get_user_notes, get_user_quiz, update_user_progress, login_user, display_flashcards, display_notes, display_quizzes, display_users_table, get_study_guides, add_study_guide
+from db import connect_db, create_notes_table, create_flashcards_table, create_studyguide_table,create_quiz_table, create_users_table, add_flashcard, add_note, add_quiz, get_total_notes, get_notes_read, get_all_users, get_user_flashcards, get_saved_notes, get_user_notes, get_user_quiz, update_user_progress, login_user, display_flashcards, display_notes, display_quizzes, display_users_table, get_study_guides, add_study_guide, mark_flashcard_as_reviewed, mark_notes_as_read
 create_studyguide_table()
 #create_flashcards_table(), create_notes_table(), create_quiz_table(), create_users_table()
 # from streamlit_lottie import st_lottie
@@ -39,19 +39,32 @@ if selected == "Home":
     st.text("Enjoy using the Learning Assistant App!")
     
 elif selected == "Dashboard":
-    total_notes = 100
-    notes_read = 75
+    user_id = 1  
 
-# Calculate progress percentage
-    progress = (notes_read / total_notes) * 100
+    # Fetch dynamic data from the database
+    total_notes = get_total_notes(user_id)  # Function to get total notes from the DB
+    notes_read = get_notes_read(user_id)  # Function to get the number of notes read
 
-# Streamlit dashboard
+    # Calculate progress percentage
+    if total_notes > 0:
+        progress = (notes_read / total_notes) * 100
+    else:
+        progress = 0
+
+    # Streamlit dashboard
     st.title("User Progress Dashboard")
     st.write(f"Total Notes: {total_notes}")
     st.write(f"Notes Read: {notes_read}")
     st.progress(progress / 100)
     st.write(f"Progress: {progress:.2f}%")
-    st.write("Keep up the good work!")
+
+    # Show dynamic motivation based on progress
+    if progress >= 90:
+        st.write("You're almost there, keep going!")
+    elif progress >= 50:
+        st.write("You're halfway through, great job!")
+    else:
+        st.write("Keep up the hard work, you're making progress!")
 
 elif selected == "Notes":
     st.title("Notes")
@@ -81,7 +94,28 @@ elif selected == "Notes":
             add_note(user_id,note_title,notes)
             st.success("Notes saved successfully")
         
+        # Section to select and view saved notes
+    st.subheader("Your Saved Notes")
+    saved_notes = get_saved_notes(user_id)  # Fetch saved notes from the database
 
+    if saved_notes:
+        # Create a dropdown for the user to select a saved note by title
+        note_titles = [note[0] for note in saved_notes]  # Get note titles
+        selected_note_title = st.selectbox("Choose your saved note to view", note_titles)
+
+        # Retrieve the selected note content and ID
+        selected_note = next(note for note in saved_notes if note[0] == selected_note_title)
+        note_content = selected_note[1]  # Get the content of the note
+        note_id = selected_note[2]  # Get the note ID
+
+        st.write(f"Selected Note: {selected_note_title}")
+        st.write(note_content[:500] + "...")  # Display the first 500 characters
+
+        # Mark the note as read when displayed
+        mark_notes_as_read(note_id)
+        st.info(f"Note '{selected_note_title}' marked as read.")
+    else:
+        st.write("No saved notes available.")
     
 elif selected == "Summary":
     st.title("Summary")
@@ -202,13 +236,17 @@ elif selected == "Flashcards":
     flashcards = get_user_flashcards(user_id)
 
     if flashcards:
-        for question, answer in flashcards:
+        for flashcard in flashcards:
+            question = flashcard[1]  # Assuming question is in the second column
+            answer = flashcard[2]  # Assuming answer is in the third column
+            flashcard_id = flashcard[0]  # Assuming the first column is the flashcard ID
+            
             st.write(f"Question: {question}")
-        if st.button(f"Show Answer: {question}"):
-            if answer:
-                st.write(f"A: {answer[0]}")
-            else:
-                st.write("A:No answer available")
+            
+            # Add a button to show the answer and mark the flashcard as reviewed
+            if st.button(f"Show Answer for Flashcard {flashcard_id}"):
+                st.write(f"Answer: {answer}")
+                mark_flashcard_as_reviewed(flashcard_id)  # Mark as reviewed
     else:
         st.write("No flashcards available.")
 
@@ -269,7 +307,7 @@ elif selected == "Study Guide":
         study_guide = response.generations[0].text
         return study_guide
 
-    user_id = 1  # Example user ID, replace with actual user ID from your app's logic
+    user_id = 1 
 
     # Fetch saved notes from the database
     saved_notes = get_saved_notes(user_id)

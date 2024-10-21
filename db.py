@@ -14,11 +14,15 @@ def create_notes_table():
             user_id INTEGER,
             note_title TEXT NOT NULL,
             note_content TEXT NOT NULL,
+            read INTEGER DEFAULT 0,
             FOREIGN KEY (user_id) REFERENCES users(user_id)
+            ALTER TABLE notes ADD COLUMN IF NOT EXISTS read INTEGER DEFAULT 0;
+
         )
     ''')
     conn.commit()
     conn.close()
+
 
 # function to create the users table
 def create_users_table():
@@ -45,6 +49,7 @@ def create_flashcards_table():
             user_id INTEGER,
             question TEXT NOT NULL,
             answer TEXT NOT NULL,
+            reviewed INTEGER DEFAULT 0,
             FOREIGN KEY (user_id) REFERENCES users(user_id)
             )           
             '''   )
@@ -172,10 +177,52 @@ def get_study_guides(user_id):
 def get_saved_notes(user_id):
     conn = connect_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT note_title, note_content FROM notes')
+    cursor.execute('SELECT note_title, note_content,id FROM notes WHERE user_id = ?' , (user_id))
     notes = cursor.fetchall()
     conn.close()
     return notes
+
+#Function to get total notes
+def get_total_notes(user_id):
+    conn = sqlite3.connect('learning_assistant.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM notes WHERE user_id = ?', (user_id,))
+    total_notes = cursor.fetchone()[0]
+    conn.close()
+    return total_notes
+
+# Function to get number of notes read
+def get_notes_read(user_id):
+    conn = sqlite3.connect('learning_assistant.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM notes WHERE user_id = ? AND read = 1', (user_id,))
+    notes_read = cursor.fetchone()[0]
+    conn.close()
+    return notes_read
+
+# Function to get the number of quizzes completed by the user
+def get_user_quizzes(user_id):
+    conn = sqlite3.connect('learning_assistant.db')
+    cursor = conn.cursor()
+
+    # Query to count the number of quizzes completed by the user
+    cursor.execute('SELECT COUNT(*) FROM quiz WHERE user_id = ?', (user_id,))
+    quizzes_completed = cursor.fetchone()[0]
+    
+    conn.close()
+    return quizzes_completed
+
+# Function to get the number of flashcards reviewed by the user
+def get_user_flashcards(user_id):
+    conn = sqlite3.connect('learning_assistant.db')
+    cursor = conn.cursor()
+
+    # Query to count the number of reviewed flashcards
+    cursor.execute('SELECT COUNT(*) FROM flashcards WHERE user_id = ? AND reviewed = 1', (user_id,))
+    flashcards_reviewed = cursor.fetchone()[0]
+    
+    conn.close()
+    return flashcards_reviewed
 
 #function to update user progress
 def update_user_progress(user_id, new_progress):
@@ -201,3 +248,25 @@ def display_notes(user_id):
 def display_users_table():
     users = get_all_users()
     return users
+
+# Function to mark a flashcard as reviewed
+def mark_flashcard_as_reviewed(flashcard_id):
+    conn = sqlite3.connect('learning_assistant.db')
+    cursor = conn.cursor()
+
+    # Update the reviewed status of the flashcard
+    cursor.execute('UPDATE flashcards SET reviewed = 1 WHERE id = ?', (flashcard_id,))
+    
+    conn.commit()
+    conn.close()
+    
+# Function to mark a flashcard as reviewed
+def mark_notes_as_read(note_id):
+    conn = sqlite3.connect('learning_assistant.db')
+    cursor = conn.cursor()
+
+    # Update the reviewed status of the flashcard
+    cursor.execute('UPDATE notes SET read = 1 WHERE id = ?',(note_id,))
+    
+    conn.commit()
+    conn.close()
