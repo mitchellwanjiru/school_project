@@ -5,7 +5,7 @@ def connect_db():
     return sqlite3.connect('learning_assistant.db')
 
 # Function to create the notes table if it doesn't exist
-def create_notes_table():
+def create_notes_table(): 
     conn = connect_db()
     cursor = conn.cursor()
     cursor.execute('''
@@ -16,8 +16,6 @@ def create_notes_table():
             note_content TEXT NOT NULL,
             read INTEGER DEFAULT 0,
             FOREIGN KEY (user_id) REFERENCES users(user_id)
-            ALTER TABLE notes ADD COLUMN IF NOT EXISTS read INTEGER DEFAULT 0;
-
         )
     ''')
     conn.commit()
@@ -177,7 +175,7 @@ def get_study_guides(user_id):
 def get_saved_notes(user_id):
     conn = connect_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT note_title, note_content,id FROM notes WHERE user_id = ?' , (user_id))
+    cursor.execute('SELECT note_title, note_content,id FROM notes WHERE user_id = ?' , (user_id,))
     notes = cursor.fetchall()
     conn.close()
     return notes
