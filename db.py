@@ -211,7 +211,7 @@ def get_user_quizzes(user_id):
     return quizzes_completed
 
 # Function to get the number of flashcards reviewed by the user
-def get_user_flashcards(user_id):
+def get_reviewed_flashcards(user_id):
     conn = sqlite3.connect('learning_assistant.db')
     cursor = conn.cursor()
 

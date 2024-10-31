@@ -7,9 +7,9 @@ import os
 import sqlite3
 from PyPDF2 import PdfReader 
 from db import connect_db, create_notes_table, create_flashcards_table, create_studyguide_table,create_quiz_table, create_users_table, add_flashcard, add_note, add_quiz, get_total_notes, get_notes_read, get_all_users, get_user_flashcards, get_saved_notes, get_user_notes, get_user_quiz, update_user_progress, login_user, display_flashcards, display_notes, display_quizzes, display_users_table, get_study_guides, add_study_guide, mark_flashcard_as_reviewed, mark_notes_as_read
+from auth import create_user_table, add_user, login_user
 create_studyguide_table()
-#create_flashcards_table(), create_notes_table(), create_quiz_table(), create_users_table()
-# from streamlit_lottie import st_lottie
+create_user_table()
 
 st.set_page_config(
     page_title="Learning Assistant App"
@@ -22,330 +22,316 @@ if api_key is None:
     st.error("API key not found. Please set the COHERE_API_KEY environment variable.")
     st.stop()
 
-with st.sidebar:
-    selected = option_menu(
-        menu_title="Main Menu",
-        options=["Home", "Dashboard", "Notes", "Summary", "Study Guide", "Flashcards", "Quiz"],
-        icons=["house", "speedometer2", "book", "archive", "journal-bookmark", "card-text", "question-circle"],
-        menu_icon="cast",
-        default_index=0,
-    )
+# Ensure login state
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
 
-if selected == "Home":
-    st.title("Home")
-    st.text("Welcome to the Home page")
-    st.text("This is where you can find an overview of your progress and access other features of the app")
-    st.text("Use the sidebar to navigate to other pages")
-    st.text("Enjoy using the Learning Assistant App!")
-    
-elif selected == "Dashboard":
-    user_id = 1  
+# Login/Signup Page
+def login_signup():
+    st.title("Welcome to Study Buddy")
 
-    # Fetch dynamic data from the database
-    total_notes = get_total_notes(user_id)  # Function to get total notes from the DB
-    notes_read = get_notes_read(user_id)  # Function to get the number of notes read
+    if 'show_signup' not in st.session_state:
+        st.session_state['show_signup'] = False
 
-    # Calculate progress percentage
-    if total_notes > 0:
-        progress = (notes_read / total_notes) * 100
+    # Toggle Login/Signup forms
+    if st.session_state['show_signup']:
+        st.header("Sign Up")
+        username = st.text_input("Username", key="signup_username")
+        password = st.text_input("Password", type="password", key="signup_password")
+        if st.button("Create Account"):
+            add_user(username, password)
+            st.success("Account created! Please log in.")
+            st.session_state['show_signup'] = False
+        if st.button("Back to Login"):
+            st.session_state['show_signup'] = False
+
     else:
-        progress = 0
+        st.header("Login")
+        username = st.text_input("Username", key="login_username")
+        password = st.text_input("Password", type="password", key="login_password")
+        if st.button("Log In"):
+            user = login_user(username, password)
+            if user:
+                st.session_state.logged_in = True
+                st.session_state.username = username
+                st.success(f"Welcome, {username}!")
+            else:
+                st.error("Incorrect username or password.")
+        if st.button("Create an Account"):
+            st.session_state['show_signup'] = True
 
-    # Streamlit dashboard
-    st.title("User Progress Dashboard")
-    st.write(f"Total Notes: {total_notes}")
-    st.write(f"Notes Read: {notes_read}")
-    st.progress(progress / 100)
-    st.write(f"Progress: {progress:.2f}%")
-
-    # Show dynamic motivation based on progress
-    if progress >= 90:
-        st.write("You're almost there, keep going!")
-    elif progress >= 50:
-        st.write("You're halfway through, great job!")
-    else:
-        st.write("Keep up the hard work, you're making progress!")
-
-elif selected == "Notes":
-    st.title("Notes")
-    st.text("Welcome to the Notes page")
-    st.text("This is where you can upload your notes")
-    st.text("You can also view and edit your notes here")
-    st.write("Click here to upload your notes")
-    
-    st.subheader("Upload New Notes")
-    uploaded_file = st.file_uploader("Upload your notes (PDF or TXT)", type=["pdf", "txt"])
-    
-    user_id = 1
-    if uploaded_file:
-        if uploaded_file.type == "application/pdf":
-            pdf_reader = PdfReader(uploaded_file)
-            notes = ""
-            for page in pdf_reader.pages:
-                notes += page.extract_text()
-        else:
-            notes = uploaded_file.read().decode("utf-8")
-        note_title = st.text_input("Enter the title for your notes",value = "Untitled notes")
-
-        st.write("Here is a preview of your uploaded notes:")
-        st.write(notes[:200] + "...")
-        
-        if st.button("Save notes"):
-            add_note(user_id,note_title,notes)
-            st.success("Notes saved successfully")
-        
-        # Section to select and view saved notes
-    st.subheader("Your Saved Notes")
-    saved_notes = get_saved_notes(user_id)  # Fetch saved notes from the database
-
-    if saved_notes:
-        # Create a dropdown for the user to select a saved note by title
-        note_titles = [note[0] for note in saved_notes]  # Get note titles
-        selected_note_title = st.selectbox("Choose your saved note to view", note_titles)
-
-        # Retrieve the selected note content and ID
-        selected_note = next(note for note in saved_notes if note[0] == selected_note_title)
-        note_content = selected_note[1]  # Get the content of the note
-        note_id = selected_note[2]  # Get the note ID
-
-        st.write(f"Selected Note: {selected_note_title}")
-        st.write(note_content[:500] + "...")  # Display the first 500 characters
-
-        # Mark the note as read when displayed
-        mark_notes_as_read(note_id)
-        st.info(f"Note '{selected_note_title}' marked as read.")
-    else:
-        st.write("No saved notes available.")
-    
-elif selected == "Summary":
-    st.title("Summary")
-    st.subheader("Welcome to the Summary page")
-    st.text("Upload your notes below, or select previously saved notes to generate a summary.")
-    
-    # function to summarize notes using cohere API
-    def summarize_notes(notes):
-        response = co.generate(
-            model='command-xlarge-nightly',
-            prompt=f"summarize the following notes:\n\n{notes}\n\nSummarize the above content in a clear and concise way.",
-            max_tokens=200,
+if not st.session_state.get("logged_in", False):
+    login_signup()
+else:
+    # Sidebar Navigation
+    with st.sidebar:
+        selected = option_menu(
+            menu_title="Main Menu",
+            options=["Home", "Dashboard", "Notes", "Summary", "Study Guide", "Flashcards", "Quiz"],
+            icons=["house", "speedometer2", "book", "archive", "journal-bookmark", "card-text", "question-circle"],
+            menu_icon="cast",
+            default_index=0,
         )
-        summary = response.generations[0].text
-        return summary
 
-    
+    # Home Page
+    if selected == "Home":
+        st.title("Home")
+        st.text("Welcome to the Home page of your Study Buddy!")
+        st.text("Use the sidebar to navigate through the app.")
 
-    # function to choose from saved notes(if available)
-    user_id = 1
-    saved_notes = get_saved_notes(user_id)
-    if saved_notes:
-        st.subheader("Choose from saved notes")
-        selected_note = st.selectbox("Select saved notes to summarize", [note[0] for note in saved_notes])
-        if selected_note:
-            # get selected notes' content
-            note_content = next(note[1] for note in saved_notes if note[0] == selected_note)
-            if st.button("Summarize selected notes"):
+    # Dashboard Section
+    elif selected == "Dashboard":
+        user_id = st.session_state.username
+        total_notes = get_total_notes(user_id)
+        notes_read = get_notes_read(user_id)
+        progress = (notes_read / total_notes) * 100 if total_notes else 0
+
+        st.title("User Progress Dashboard")
+        st.write(f"Total Notes: {total_notes}")
+        st.write(f"Notes Read: {notes_read}")
+        st.progress(progress / 100)
+        st.write(f"Progress: {progress:.2f}%")
+
+        if progress >= 90:
+            st.write("You're almost there, keep going!")
+        elif progress >= 50:
+            st.write("You're halfway through, great job!")
+        else:
+            st.write("Keep up the hard work, you're making progress!")
+
+    # Notes Section
+    elif selected == "Notes":
+        st.title("Notes")
+        uploaded_file = st.file_uploader("Upload your notes (PDF or TXT)", type=["pdf", "txt"])
+        user_id = st.session_state.username
+
+        if uploaded_file:
+            if uploaded_file.type == "application/pdf":
+                pdf_reader = PdfReader(uploaded_file)
+                notes = "".join([page.extract_text() for page in pdf_reader.pages])
+            else:
+                notes = uploaded_file.read().decode("utf-8")
+            note_title = st.text_input("Enter the title for your notes", value="Untitled notes")
+
+            if st.button("Save notes"):
+                add_note(user_id, note_title, notes)
+                st.success("Notes saved successfully")
+
+        saved_notes = get_saved_notes(user_id)
+        if saved_notes:
+            note_titles = [note[0] for note in saved_notes]
+            selected_note_title = st.selectbox("Choose your saved note to view", note_titles)
+            selected_note = next(note for note in saved_notes if note[0] == selected_note_title)
+            st.write(selected_note[1])
+            mark_notes_as_read(selected_note[2])
+            st.info(f"Note '{selected_note_title}' marked as read.")
+        else:
+            st.write("No saved notes available.")
+            
+    elif selected == "Summary":
+        st.title("Summary")
+        st.subheader("Welcome to the Summary page")
+        st.text("Upload your notes below, or select previously saved notes to generate a summary.")
+        
+        # function to summarize notes using cohere API
+        def summarize_notes(notes):
+            response = co.generate(
+                model='command-xlarge-nightly',
+                prompt=f"summarize the following notes:\n\n{notes}\n\nSummarize the above content in a clear and concise way.",
+                max_tokens=200,
+            )
+            summary = response.generations[0].text
+            return summary
+
+        
+
+        # function to choose from saved notes(if available)
+        user_id = 1
+        saved_notes = get_saved_notes(user_id)
+        if saved_notes:
+            st.subheader("Choose from saved notes")
+            selected_note = st.selectbox("Select saved notes to summarize", [note[0] for note in saved_notes])
+            if selected_note:
+                # get selected notes' content
+                note_content = next(note[1] for note in saved_notes if note[0] == selected_note)
+                if st.button("Summarize selected notes"):
+                    with st.spinner("Summarizing..."):
+                        summary = summarize_notes(note_content)
+                        st.subheader("Summary:")
+                        st.write(summary)
+
+        st.subheader("Upload New Notes")
+        uploaded_file = st.file_uploader("Upload your notes (PDF or TXT)", type=["pdf", "txt"])
+
+        if uploaded_file:
+            if uploaded_file.type == "application/pdf":
+                pdf_reader = PdfReader(uploaded_file)
+                notes = ""
+                for page in pdf_reader.pages:
+                    notes += page.extract_text()
+            else:
+                notes = uploaded_file.read().decode("utf-8")
+
+            st.write("Here is a preview of your uploaded notes:")
+            st.write(notes[:200] + "...")
+
+            # generate summary button
+            if st.button("Summarize uploaded notes"):
                 with st.spinner("Summarizing..."):
-                    summary = summarize_notes(note_content)
-                    st.subheader("Summary:")
+                    summary = summarize_notes(notes)
+                    st.subheader("Summary")
                     st.write(summary)
 
-    st.subheader("Upload New Notes")
-    uploaded_file = st.file_uploader("Upload your notes (PDF or TXT)", type=["pdf", "txt"])
+    # Flashcards Section
+    elif selected == "Flashcards":
+        st.title("Generate and View Flashcards")
 
-    if uploaded_file:
-        if uploaded_file.type == "application/pdf":
-            pdf_reader = PdfReader(uploaded_file)
-            notes = ""
-            for page in pdf_reader.pages:
-                notes += page.extract_text()
-        else:
-            notes = uploaded_file.read().decode("utf-8")
+        def generate_flashcards(notes):
+            response = co.generate(
+                model='command-xlarge-nightly',
+                prompt=f"Generate 5 flashcards with questions and answers:\n\n{notes}",
+                max_tokens=200,
+            )
+            flashcards_text = response.generations[0].text
+            flashcards = []
+            lines = flashcards_text.split("\n")
+            for i in range(0, len(lines), 2):
+                if i + 1 < len(lines):
+                    question = lines[i].strip()
+                    answer = lines[i + 1].strip()
+                    flashcards.append(({"question": question, "answer": answer}))
+            return flashcards
 
-        st.write("Here is a preview of your uploaded notes:")
-        st.write(notes[:200] + "...")
+        user_id = st.session_state.username
+        saved_notes = get_saved_notes(user_id)
+        if saved_notes:
+            note_titles = [note[0] for note in saved_notes]
+            selected_note = st.selectbox("Choose your notes", note_titles)
+            note_content = next(note[1] for note in saved_notes if note[0] == selected_note)
 
-        # generate summary button
-        if st.button("Summarize uploaded notes"):
-            with st.spinner("Summarizing..."):
-                summary = summarize_notes(notes)
-                st.subheader("Summary")
-                st.write(summary)
-      
-    
-elif selected == "Flashcards":
-    st.title("Generate and View Flashcards")
-    st.text("Welcome to the Flashcards page")
-    st.text("This is where you can generate flashcards from your notes")
-    st.text("You can also view and edit your flashcards here")
-    st.write("Click here to generate flashcards")
-
-#function to generate flashcards
-    def generate_flashcards(notes):
-        response = co.generate(
-        model='command-xlarge-nightly',
-        prompt=f"generate 5 flashcards with questions and answers from the following notes:\n\n{notes}",
-        max_tokens=200,
-    )
-        flashcards = response.generations[0].text
-        return flashcards
-
-#function to parse the generated text into question-answer pairs
-    def parse_flashcards(flashcards_text):
-        flashcards = []
-        lines = flashcards_text.split("\n")
-        for i in range(0, len(lines), 2):
-            question = lines[i].strip()
-            answer = lines[i + 1].strip() if i + 1 < len(lines) else ""
-            flashcards.append(({"question": question, "answer": answer}))
-        return flashcards
-
-    # Retrieve saved notes
-    user_id = 1  # Example user_id
-    saved_notes = get_saved_notes(user_id)
-
-    # If there are saved notes, let the user select one
-    if saved_notes:
-        note_titles = [note[0] for note in saved_notes]  # Get note titles
-        selected_note = st.selectbox("Choose your notes", note_titles)
-
-        # Get the content of the selected note
-        note_content = next(note[1] for note in saved_notes if note[0] == selected_note)
-
-        st.write(f"Selected Notes: {selected_note}")
-        st.write(note_content[:500] + "...")  # Show preview of the notes
-
-        
-
-    # generate and save flashcards button
-        if st.button("Generate Flashcards"):
-            with st.spinner("Generating flashcards..."):
-                generated_flashcards = generate_flashcards(note_content)
-                flashcards = parse_flashcards(generated_flashcards)
-                user_id = 1
+            if st.button("Generate Flashcards"):
+                flashcards = generate_flashcards(note_content)
                 for flashcard in flashcards:
-                    question = flashcard["question"]
-                    answer = flashcard["answer"]
-                    add_flashcard(user_id, question, answer)
-                    st.success("Flashcards generated and saved successfully!")
-    else:
-        st.write("No saved notes available.")
+                    add_flashcard(user_id, flashcard["question"], flashcard["answer"])
+                st.success("Flashcards generated and saved successfully!")
 
-#display existing flashcards
-    st.subheader("View Existing Flashcards")
-    user_id = 1
-    flashcards = get_user_flashcards(user_id)
+        flashcards = get_user_flashcards(user_id)
+        if flashcards:
+            st.subheader("Your Flashcards")
+            for i, flashcard in enumerate(flashcards):
+                question = flashcard[1]
+                answer = flashcard[2]
+                flip_state = f"flip_{i}"
+                if flip_state not in st.session_state:
+                    st.session_state[flip_state] = False
 
-    if flashcards:
-        for flashcard in flashcards:
-            question = flashcard[1]  # Assuming question is in the second column
-            answer = flashcard[2]  # Assuming answer is in the third column
-            flashcard_id = flashcard[0]  # Assuming the first column is the flashcard ID
-            
-            st.write(f"Question: {question}")
-            
-            # Add a button to show the answer and mark the flashcard as reviewed
-            if st.button(f"Show Answer for Flashcard {flashcard_id}"):
-                st.write(f"Answer: {answer}")
-                mark_flashcard_as_reviewed(flashcard_id)  # Mark as reviewed
-    else:
-        st.write("No flashcards available.")
-
-elif selected == "Quiz":
-    st.title("Quiz")
-    st.text("Welcome to the Quiz page")
-    st.text("This is where you can generate quizzes from your notes")
-    st.text("You can also view and edit your quizzes here")
-    st.write("Click here to generate a quiz")
-    
-    # function to generate quiz
-    def generate_quiz(notes):
-        response = co.generate(
-        model='command-xlarge-nightly',
-        prompt=f"generate a 10 question quiz with choices to choose from from the following notes:\n\n{notes}",
-        max_tokens=200,
-    )
-        quiz = response.generations[0].text
-        return quiz
+                if st.session_state[flip_state]:
+                    st.write(f"Answer: {answer}")
+                    if st.button(f"Show Question {i}"):
+                        st.session_state[flip_state] = False
+                else:
+                    st.write(f"Question: {question}")
+                    if st.button(f"Show Answer {i}"):
+                        st.session_state[flip_state] = True
+        else:
+            st.write("No flashcards available.")
+    elif selected == "Quiz":
+        st.title("Quiz")
+        st.text("Welcome to the Quiz page")
+        st.text("This is where you can generate quizzes from your notes")
+        st.text("You can also view and edit your quizzes here")
+        st.write("Click here to generate a quiz")
+        
+        # function to generate quiz
+        def generate_quiz(notes):
+            response = co.generate(
+            model='command-xlarge-nightly',
+            prompt=f"generate a 10 question quiz with choices to choose from from the following notes:\n\n{notes}",
+            max_tokens=200,
+        )
+            quiz = response.generations[0].text
+            return quiz
 
 
-    # Retrieve saved notes
-    user_id = 1  # Example user_id
-    saved_notes = get_saved_notes(user_id)
+        # Retrieve saved notes
+        user_id = 1  # Example user_id
+        saved_notes = get_saved_notes(user_id)
 
-    # If there are saved notes, let the user select one
-    if saved_notes:
-        note_titles = [note[0] for note in saved_notes]  # Get note titles
-        selected_note = st.selectbox("Choose your notes", note_titles)
+        # If there are saved notes, let the user select one
+        if saved_notes:
+            note_titles = [note[0] for note in saved_notes]  # Get note titles
+            selected_note = st.selectbox("Choose your notes", note_titles)
 
-        # Get the content of the selected note
-        note_content = next(note[1] for note in saved_notes if note[0] == selected_note)
+            # Get the content of the selected note
+            note_content = next(note[1] for note in saved_notes if note[0] == selected_note)
 
-        st.write(f"Selected Notes: {selected_note}")
-        st.write(note_content[:500] + "...")  # Show preview of the notes
+            st.write(f"Selected Notes: {selected_note}")
+            st.write(note_content[:500] + "...")  # Show preview of the notes
 
-        # Generate quiz based on the selected notes
-        if st.button("Generate Quiz"):
-            with st.spinner("Generating quiz..."):
-                quiz = generate_quiz(note_content)
-                st.write(quiz)
-    else:
-        st.write("No saved notes available.")
+            # Generate quiz based on the selected notes
+            if st.button("Generate Quiz"):
+                with st.spinner("Generating quiz..."):
+                    quiz = generate_quiz(note_content)
+                    st.write(quiz)
+        else:
+            st.write("No saved notes available.")
 
 
 
-# Study Guide Page Logic
-elif selected == "Study Guide":
-    st.title("Generate Your Study Guide")
-    
-    # Function to generate a study guide from notes
-    def generate_study_guide(notes):
-        response = co.generate(
-        model='command-xlarge-nightly',
-        prompt=f"Generate a study guide based on these notes:\n\n{notes}\n\nThe study guide should summarize key points and suggest topics to focus on.",
-        max_tokens=300
-    )
-        study_guide = response.generations[0].text
-        return study_guide
+    # Study Guide Page Logic
+    elif selected == "Study Guide":
+        st.title("Generate Your Study Guide")
+        
+        # Function to generate a study guide from notes
+        def generate_study_guide(notes):
+            response = co.generate(
+            model='command-xlarge-nightly',
+            prompt=f"Generate a study guide based on these notes:\n\n{notes}\n\nThe study guide should summarize key points and suggest topics to focus on.",
+            max_tokens=300
+        )
+            study_guide = response.generations[0].text
+            return study_guide
 
-    user_id = 1 
+        user_id = 1 
 
-    # Fetch saved notes from the database
-    saved_notes = get_saved_notes(user_id)
-    
-    if saved_notes:
-        # Let the user select a note from a dropdown
-        note_titles = [note[0] for note in saved_notes]  # Get titles of saved notes
-        selected_note_title = st.selectbox("Choose your notes", note_titles)
+        # Fetch saved notes from the database
+        saved_notes = get_saved_notes(user_id)
+        
+        if saved_notes:
+            # Let the user select a note from a dropdown
+            note_titles = [note[0] for note in saved_notes]  # Get titles of saved notes
+            selected_note_title = st.selectbox("Choose your notes", note_titles)
 
-        # Retrieve the content of the selected note
-        note_content = next(note[1] for note in saved_notes if note[0] == selected_note_title)
+            # Retrieve the content of the selected note
+            note_content = next(note[1] for note in saved_notes if note[0] == selected_note_title)
 
-        st.write(f"Selected Notes: {selected_note_title}")
-        st.write(note_content[:500] + "...")  # Show a preview of the selected notes
+            st.write(f"Selected Notes: {selected_note_title}")
+            st.write(note_content[:500] + "...")  # Show a preview of the selected notes
 
-        # Generate Study Guide
-        if st.button("Generate Study Guide"):
-            with st.spinner("Generating your study guide..."):
-                study_guide = generate_study_guide(note_content)
-                st.subheader("Generated Study Guide")
-                st.write(study_guide)
+            # Generate Study Guide
+            if st.button("Generate Study Guide"):
+                with st.spinner("Generating your study guide..."):
+                    study_guide = generate_study_guide(note_content)
+                    st.subheader("Generated Study Guide")
+                    st.write(study_guide)
 
-                # Save the generated study guide to the database
-                add_study_guide(user_id, study_guide)
-                st.success("Study guide saved successfully!")
+                    # Save the generated study guide to the database
+                    add_study_guide(user_id, study_guide)
+                    st.success("Study guide saved successfully!")
 
-    else:
-        st.write("No saved notes available. Please upload notes on the Notes page.")
+        else:
+            st.write("No saved notes available. Please upload notes on the Notes page.")
 
-    # Display saved study guides
-    st.subheader("Your Saved Study Guides")
-    saved_guides = get_study_guides(user_id)
+        # Display saved study guides
+        st.subheader("Your Saved Study Guides")
+        saved_guides = get_study_guides(user_id)
 
-    if saved_guides:
-        for guide in saved_guides:
-            st.write(f"Study Guide:\n\n{guide[0]}")
-    else:
-        st.write("No study guides available.")    
-
-    
-    
+        if saved_guides:
+            for guide in saved_guides:
+                st.write(f"Study Guide:\n\n{guide[0]}")
+        else:
+            st.write("No study guides available.")   
+             
+# else:
+#     st.warning("Please log in to access this page.")
+#     login_signup()
