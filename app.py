@@ -92,12 +92,7 @@ else:
         st.progress(progress / 100)
         st.write(f"Progress: {progress:.2f}%")
 
-        if progress >= 90:
-            st.write("You're almost there, keep going!")
-        elif progress >= 50:
-            st.write("You're halfway through, great job!")
-        else:
-            st.write("Keep up the hard work, you're making progress!")
+        #   
 
     # Notes Section
     elif selected == "Notes":
@@ -332,6 +327,26 @@ else:
         else:
             st.write("No study guides available.")   
              
-# else:
-#     st.warning("Please log in to access this page.")
-#     login_signup()
+# Footer Disclaimer (using markdown and HTML)
+footer = """
+    <style>
+        .footer {
+            background-color: #181818;
+            color: #f0f2f6;
+            padding: 10px;
+            text-align: center;
+            font-size: 12px;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+        }
+    </style>
+    <div class="footer">
+        <p><small>Disclaimer: AI-generated content may contain inaccuracies. Please verify critical information from trusted sources.</small></p>
+    </div>
+"""
+
+# Display the footer on every page
+st.markdown(footer, unsafe_allow_html=True)
