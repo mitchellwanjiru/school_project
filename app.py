@@ -76,8 +76,8 @@ else:
     # Home Page
     if selected == "Home":
         st.title("Home")
-        st.text("Welcome to the Home page of your Study Buddy!")
-        st.text("Use the sidebar to navigate through the app.")
+        st.write("Welcome to the Home page of your Study Buddy!")
+        st.write("Use the sidebar to navigate through the app.")
 
     # Dashboard Section
     elif selected == "Dashboard":
@@ -126,14 +126,14 @@ else:
     elif selected == "Summary":
         st.title("Summary")
         st.subheader("Welcome to the Summary page")
-        st.text("Upload your notes below, or select previously saved notes to generate a summary.")
+        st.write("Upload your notes below, or select previously saved notes to generate a summary.")
         
         # function to summarize notes using cohere API
         def summarize_notes(notes):
             response = co.generate(
                 model='command-xlarge-nightly',
                 prompt=f"summarize the following notes:\n\n{notes}\n\nSummarize the above content in a clear and concise way.",
-                max_tokens=200,
+                max_tokens=800,
             )
             summary = response.generations[0].text
             return summary
@@ -141,7 +141,7 @@ else:
         
 
         # function to choose from saved notes(if available)
-        user_id = 1
+        user_id = st.session_state.username
         saved_notes = get_saved_notes(user_id)
         if saved_notes:
             st.subheader("Choose from saved notes")
@@ -184,8 +184,8 @@ else:
         def generate_flashcards(notes):
             response = co.generate(
                 model='command-xlarge-nightly',
-                prompt=f"Generate 5 flashcards with questions and answers:\n\n{notes}",
-                max_tokens=200,
+                prompt=f"Generate 5 flashcards with questions and answers from these notes:\n\n{notes}",
+                max_tokens=800,
             )
             flashcards_text = response.generations[0].text
             flashcards = []
@@ -194,62 +194,127 @@ else:
                 if i + 1 < len(lines):
                     question = lines[i].strip()
                     answer = lines[i + 1].strip()
-                    flashcards.append(({"question": question, "answer": answer}))
+                    flashcards.append({"question": question, "answer": answer})
             return flashcards
 
-        user_id = st.session_state.username
+        def generate_flashcards_html(flashcards):
+            cards_html = """
+            <style>
+            .flashcard-container {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            .flashcard {
+                background-color: #fff;
+                width: 300px;
+                height: 200px;
+                margin: 10px;
+                perspective: 1000px;
+            }
+            .flashcard-inner {
+                position: relative;
+                width: 100%;
+                height: 100%;
+                text-align: center;
+                transition: transform 0.6s;
+                transform-style: preserve-3d;
+            }
+            .flashcard:hover .flashcard-inner {
+                transform: rotateY(180deg);
+            }
+            .flashcard-front, .flashcard-back {
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                backface-visibility: hidden;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                border: 1px solid #ccc;
+                border-radius: 10px;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            }
+            .flashcard-front {
+                background-color: #4CAF50;
+                color: white;
+            }
+            .flashcard-back {
+                background-color: #f44336;
+                color: white;
+                transform: rotateY(180deg);
+            }
+            </style>
+            <div class="flashcard-container">
+            """
+            
+            # Loop through flashcards and generate HTML
+            for flashcard in flashcards:
+                question = flashcard["question"]
+                answer = flashcard["answer"]
+                cards_html += f"""
+                <div class="flashcard">
+                    <div class="flashcard-inner">
+                        <div class="flashcard-front">
+                            <p>{question}</p>
+                        </div>
+                        <div class="flashcard-back">
+                            <p>{answer}</p>
+                        </div>
+                    </div>
+                </div>
+                """
+            
+            cards_html += "</div>"
+            return cards_html
+
+        # Retrieve user data and saved notes
+        user_id = st.session_state.username  # Make sure user_id is set after login
         saved_notes = get_saved_notes(user_id)
+
         if saved_notes:
-            note_titles = [note[0] for note in saved_notes]
+            note_titles = [note[0] for note in saved_notes]  # Get note titles
             selected_note = st.selectbox("Choose your notes", note_titles)
+
+            # Get the content of the selected note
             note_content = next(note[1] for note in saved_notes if note[0] == selected_note)
 
             if st.button("Generate Flashcards"):
                 flashcards = generate_flashcards(note_content)
+                
+                # Generate flashcards HTML and display them
+                flashcards_html = generate_flashcards_html(flashcards)
+                st.components.v1.html(flashcards_html, height=600)
+
+                # Optionally, save generated flashcards to the database
                 for flashcard in flashcards:
                     add_flashcard(user_id, flashcard["question"], flashcard["answer"])
+                
                 st.success("Flashcards generated and saved successfully!")
 
-        flashcards = get_user_flashcards(user_id)
-        if flashcards:
-            st.subheader("Your Flashcards")
-            for i, flashcard in enumerate(flashcards):
-                question = flashcard[1]
-                answer = flashcard[2]
-                flip_state = f"flip_{i}"
-                if flip_state not in st.session_state:
-                    st.session_state[flip_state] = False
-
-                if st.session_state[flip_state]:
-                    st.write(f"Answer: {answer}")
-                    if st.button(f"Show Question {i}"):
-                        st.session_state[flip_state] = False
-                else:
-                    st.write(f"Question: {question}")
-                    if st.button(f"Show Answer {i}"):
-                        st.session_state[flip_state] = True
         else:
-            st.write("No flashcards available.")
+            st.write("No saved notes available.")
+            
     elif selected == "Quiz":
         st.title("Quiz")
-        st.text("Welcome to the Quiz page")
-        st.text("This is where you can generate quizzes from your notes")
-        st.text("You can also view and edit your quizzes here")
-        st.write("Click here to generate a quiz")
+        st.write("Welcome to the Quiz page")
+        st.write("This is where you can generate quizzes from your notes")
+        st.write("You can also view and edit your quizzes here")
+        
         
         # function to generate quiz
         def generate_quiz(notes):
             response = co.generate(
             model='command-xlarge-nightly',
             prompt=f"generate a 10 question quiz with choices to choose from from the following notes:\n\n{notes}",
-            max_tokens=200,
+            max_tokens=800,
         )
             quiz = response.generations[0].text
             return quiz
 
 
         # Retrieve saved notes
-        user_id = 1  # Example user_id
+        user_id = st.session_state.username
         saved_notes = get_saved_notes(user_id)
 
         # If there are saved notes, let the user select one
@@ -261,7 +326,7 @@ else:
             note_content = next(note[1] for note in saved_notes if note[0] == selected_note)
 
             st.write(f"Selected Notes: {selected_note}")
-            st.write(note_content[:500] + "...")  # Show preview of the notes
+            st.write(note_content[:200] + "...")  # Show preview of the notes
 
             # Generate quiz based on the selected notes
             if st.button("Generate Quiz"):
@@ -282,12 +347,12 @@ else:
             response = co.generate(
             model='command-xlarge-nightly',
             prompt=f"Generate a study guide based on these notes:\n\n{notes}\n\nThe study guide should summarize key points and suggest topics to focus on.",
-            max_tokens=300
+            max_tokens=800
         )
             study_guide = response.generations[0].text
             return study_guide
 
-        user_id = 1 
+        user_id = st.session_state.username 
 
         # Fetch saved notes from the database
         saved_notes = get_saved_notes(user_id)
@@ -301,7 +366,7 @@ else:
             note_content = next(note[1] for note in saved_notes if note[0] == selected_note_title)
 
             st.write(f"Selected Notes: {selected_note_title}")
-            st.write(note_content[:500] + "...")  # Show a preview of the selected notes
+            st.write(note_content[:200] + "...")  # Show a preview of the selected notes
 
             # Generate Study Guide
             if st.button("Generate Study Guide"):
