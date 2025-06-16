@@ -183,7 +183,7 @@ else:
 
         def generate_flashcards(notes):
             response = co.generate(
-                model='command-xlarge-nightly',
+                model='command',
                 prompt=f"Generate 5 flashcards with questions and answers from these notes:\n\n{notes}",
                 max_tokens=800,
             )
@@ -305,7 +305,7 @@ else:
         # function to generate quiz
         def generate_quiz(notes):
             response = co.generate(
-            model='command-xlarge-nightly',
+            model='command',
             prompt=f"generate a 10 question quiz with choices to choose from from the following notes:\n\n{notes}",
             max_tokens=800,
         )
@@ -345,7 +345,7 @@ else:
         # Function to generate a study guide from notes
         def generate_study_guide(notes):
             response = co.generate(
-            model='command-xlarge-nightly',
+            model='command',
             prompt=f"Generate a study guide based on these notes:\n\n{notes}\n\nThe study guide should summarize key points and suggest topics to focus on.",
             max_tokens=800
         )
