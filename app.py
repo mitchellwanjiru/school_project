@@ -131,7 +131,7 @@ else:
         # function to summarize notes using cohere API
         def summarize_notes(notes):
             response = co.generate(
-                model='command-xlarge-nightly',
+                model='command',
                 prompt=f"summarize the following notes:\n\n{notes}\n\nSummarize the above content in a clear and concise way.",
                 max_tokens=800,
             )
